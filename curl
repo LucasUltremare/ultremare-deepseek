@@ -1,0 +1,1 @@
+curl -X POST http://localhost:3000/chat -H "Content-Type: application/json" -d "{\"prompt\": \"O que é inteligência artificial?\"}"
