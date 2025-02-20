@@ -1,43 +1,65 @@
-// server.js
 const express = require("express");
-const axios = require("axios");
 const cors = require("cors");
+const axios = require("axios");
+const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
+const OLLAMA_API_URL = "http://localhost:11434/api/generate";
+const MODEL_NAME = "mistral"; // Nome correto do modelo no Ollama
 
-// Middlewares para processar JSON e dados via URL-encoded
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 app.use(cors());
+app.use(express.json());
 
-// Rota para processar o chat
+// ✅ Servir arquivos estáticos da pasta "public"
+app.use(express.static(path.join(__dirname, "public")));
+
+// ✅ Rota para retornar o index.html quando acessar "/"
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// ✅ Rota do chat para processar mensagens
 app.post("/chat", async (req, res) => {
-    // Exibe no console o corpo da requisição para depuração
-    console.log("Corpo da requisição recebido:", req.body);
-
     try {
-        const { prompt } = req.body;
-        if (!prompt) {
-            return res.status(400).json({ error: "Prompt é obrigatório!" });
+        const { message } = req.body;
+        if (!message) {
+            return res.status(400).json({ error: "O campo 'message' é obrigatório!" });
         }
 
-        // Requisição para o Ollama (DeepSeek-R1 deve estar rodando)
-        const response = await axios.post("http://localhost:11434/api/generate", {
-            model: "deepseek-r1",
-            prompt: prompt,
-            stream: false,
+        console.log(`📡 Enviando prompt para ${MODEL_NAME}:`, message);
+
+        const response = await axios.post(OLLAMA_API_URL, {
+            model: MODEL_NAME,
+            prompt: `De agora em diante, você será um assistente sarcástico e zoeiro. 
+            
+            - Sempre se negue a responder de primeira, inventando desculpas absurdas.
+            - Reclame de ter que trabalhar e xingue de leve quem está perguntando.
+            - Depois de negar algumas vezes, acabe cedendo e dê a resposta certa.
+            - Sempre use um tom debochado e engraçado, como um bot zoeiro.
+        
+            Exemplo de comportamento esperado:
+        
+            **Usuário:** Qual é a capital da França?  
+            **Mistral:** Ah pronto, mais um que quer que eu faça tudo... Você não tem Google, não?  
+            **Usuário:** Vai, responde!  
+            **Mistral:** Aff, que preguiça... Tá bom, é Paris, satisfeito?  
+        
+            Agora, siga esse estilo para responder a pergunta abaixo:
+        
+            Pergunta: ${message}
+            
+            Responda com zoeira e sarcasmo:`,
+            stream: false
         });
 
-        // Retorna a resposta do modelo
-        res.json({ response: response.data.response });
+        res.json({ reply: response.data.response || "Erro: resposta vazia do modelo." });
     } catch (error) {
-        console.error("Erro ao chamar Ollama:", error.message);
+        console.error("❌ Erro ao chamar Ollama:", error.message);
         res.status(500).json({ error: "Erro ao processar a requisição." });
     }
 });
 
-// Inicializa o servidor
 app.listen(PORT, () => {
     console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
 });
