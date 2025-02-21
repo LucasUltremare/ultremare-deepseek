@@ -1,21 +1,95 @@
+/* Reset básico */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Corpo */
 body {
-  font-family: Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #F1FAEE; /* Branco Espuma */
+}
+
+/* Container do chat */
+.chat-container {
+  width: 90%;
+  max-width: 600px;
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Título */
+h1 {
   text-align: center;
+  font-size: 24px;
+  color: #0077B6; /* Azul Mediterrâneo */
+  margin-bottom: 15px;
 }
+
+/* Área do chat */
 #chat-box {
-  width: 80%;
   height: 400px;
-  border: 1px solid #ccc;
   overflow-y: auto;
-  margin: auto;
   padding: 10px;
-  background: #f9f9f9;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  margin-bottom: 15px;
 }
+
+/* Estilos das mensagens */
+.message {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.user-message {
+  background-color: #0077B6;
+  color: white;
+  align-self: flex-end;
+  border-radius: 10px 10px 0 10px;
+  padding: 10px;
+  max-width: 80%;
+}
+
+.bot-message {
+  background-color: #E9C46A; /* Areia Dourada */
+  color: black;
+  border-radius: 10px 10px 10px 0;
+  padding: 10px;
+  max-width: 80%;
+}
+
+/* Input e botão */
+.input-container {
+  display: flex;
+  gap: 10px;
+}
+
 #user-input {
-  width: 70%;
+  flex-grow: 1;
   padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
 }
+
 button {
-  padding: 10px;
+  background-color: #0077B6;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 5px;
   cursor: pointer;
+}
+
+button:hover {
+  background-color: #005f90;
 }

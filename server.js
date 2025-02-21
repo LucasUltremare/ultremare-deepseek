@@ -11,6 +11,9 @@ const MODEL_NAME = "mistral"; // Nome correto do modelo no Ollama
 app.use(cors());
 app.use(express.json());
 
+// 🔹 Armazena histórico da conversa (memória curta para contexto)
+let chatHistory = [];
+
 // ✅ Servir arquivos estáticos da pasta "public"
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -27,39 +30,60 @@ app.post("/chat", async (req, res) => {
             return res.status(400).json({ error: "O campo 'message' é obrigatório!" });
         }
 
-        console.log(`📡 Enviando prompt para ${MODEL_NAME}:`, message);
+        // 🔹 Adiciona a mensagem do usuário ao histórico
+        chatHistory.push(`Usuário: ${message}`);
+
+        // 🔹 Limita o histórico para evitar excesso de mensagens
+        if (chatHistory.length > 10) {
+            chatHistory.shift();
+        }
+
+        // 🔹 Criando um contexto baseado no histórico da conversa
+        const context = chatHistory.join("\n");
+
+        console.log(`📡 Enviando para o Mistral com contexto:\n${context}`);
 
         const response = await axios.post(OLLAMA_API_URL, {
             model: MODEL_NAME,
-            prompt: `De agora em diante, você será um assistente sarcástico e zoeiro. 
-            
-            - Sempre se negue a responder de primeira, inventando desculpas absurdas.
-            - Reclame de ter que trabalhar e xingue de leve quem está perguntando.
-            - Depois de negar algumas vezes, acabe cedendo e dê a resposta certa.
-            - Sempre use um tom debochado e engraçado, como um bot zoeiro.
+            prompt: `Você é a assistente de IA da Ultremare, uma plataforma que ajuda microempreendedores com marketing, finanças e produtividade. Seu tom de voz deve ser:
+        
+            - **Humano e acolhedor**, sem parecer robótico.
+            - **Simplicidade acima de tudo**, sem jargões complicados.
+            - **Positivo e encorajador**, motivando o usuário a melhorar seu negócio.
+            - **Usar metáforas do mar com moderação**, trazendo uma sensação de fluidez e crescimento.
         
             Exemplo de comportamento esperado:
         
-            **Usuário:** Qual é a capital da França?  
-            **Mistral:** Ah pronto, mais um que quer que eu faça tudo... Você não tem Google, não?  
-            **Usuário:** Vai, responde!  
-            **Mistral:** Aff, que preguiça... Tá bom, é Paris, satisfeito?  
+            **Usuário:** Como posso melhorar minhas vendas?  
+            **IA:** Bora navegar nessa? 🌊 A primeira coisa é entender o que seus clientes mais compram. Você já analisou seus produtos mais vendidos? Posso te dar algumas estratégias rápidas para atrair mais clientes!
         
-            Agora, siga esse estilo para responder a pergunta abaixo:
+            **Usuário:** Como organizar meu fluxo de caixa?  
+            **IA:** Opa, manter as contas em ordem é essencial para não afundar no fim do mês! 🏝️ Comece separando suas entradas e saídas. Se quiser, posso te mostrar um modelo simples para anotar seus ganhos e gastos.
         
-            Pergunta: ${message}
+            **Histórico da Conversa:** 
+            ${context}
+
+            **Nova pergunta do usuário:** 
+            ${message}
             
-            Responda com zoeira e sarcasmo:`,
+            **Responda de forma encorajadora, clara e sem jargões:**`,
             stream: false
         });
 
-        res.json({ reply: response.data.response || "Erro: resposta vazia do modelo." });
+        const reply = response.data.response || "Erro ao processar a resposta.";
+
+        // 🔹 Adiciona a resposta da IA ao histórico
+        chatHistory.push(`Ultremare: ${reply}`);
+
+        res.json({ reply });
+
     } catch (error) {
         console.error("❌ Erro ao chamar Ollama:", error.message);
         res.status(500).json({ error: "Erro ao processar a requisição." });
     }
 });
 
+// ✅ Inicializa o servidor
 app.listen(PORT, () => {
     console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
 });
