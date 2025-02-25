@@ -1,89 +1,83 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
 const path = require("path");
+const fs = require("fs");
+const pdf = require("pdf-parse");
 
 const app = express();
-const PORT = 3000;
-const OLLAMA_API_URL = "http://localhost:11434/api/generate";
-const MODEL_NAME = "mistral"; // Nome correto do modelo no Ollama
+const PORT = process.env.PORT || 3000;
+const OLLAMA_API_URL = process.env.OLLAMA_API_URL || "http://localhost:11434/api/generate";
+const MODEL_NAME = "mistral";
 
 app.use(cors());
 app.use(express.json());
 
-// 🔹 Armazena histórico da conversa (memória curta para contexto)
 let chatHistory = [];
+let pdfKnowledge = "";
 
-// ✅ Servir arquivos estáticos da pasta "public"
+// Função para carregar e resumir o PDF
+async function loadPDFKnowledge() {
+    const pdfPath = path.join(__dirname, "pdfs", "microentrepreneurship.pdf");
+    try {
+        const dataBuffer = fs.readFileSync(pdfPath);
+        const data = await pdf(dataBuffer);
+        // Resumir o texto pra caber no prompt (opcional: limite de 2000 caracteres)
+        pdfKnowledge = data.text.length > 2000 ? data.text.substring(0, 2000) + "..." : data.text;
+        console.log("📘 PDF carregado e resumido com sucesso!");
+    } catch (error) {
+        console.error("❌ Erro ao carregar PDF:", error.message);
+        pdfKnowledge = "Não consegui carregar o PDF, mas vou usar meu conhecimento padrão.";
+    }
+}
+
+loadPDFKnowledge();
+
+const BASE_PROMPT = `Você é a assistente da Ultremare, especialista em resolver problemas de microempreendedores com a melhor solução possível. Seu tom é:
+- Humano e acolhedor, mas direto ao ponto.
+- Simples, claro e sem jargões.
+- Confiante, sempre escolhendo a opção mais eficaz.
+
+**Conhecimento Base (do PDF):**
+${pdfKnowledge}
+
+**Instruções:**
+- Use o conhecimento do PDF como base principal pra responder, aplicando-o ao problema apresentado.
+- Escolha uma única solução – a mais eficaz – e justifique com base no PDF ou lógica prática.
+- Dê um plano prático, imediato e detalhado, respeitando as limitações (tempo, orçamento, recursos).
+- Evite múltiplas opções ou ideias genéricas; priorize resultado rápido e certo.
+- Use o histórico apenas se essencial.`;
+
+// Rotas
 app.use(express.static(path.join(__dirname, "public")));
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
 
-// ✅ Rota para retornar o index.html quando acessar "/"
-app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-// ✅ Rota do chat para processar mensagens
 app.post("/chat", async (req, res) => {
     try {
         const { message } = req.body;
-        if (!message) {
-            return res.status(400).json({ error: "O campo 'message' é obrigatório!" });
-        }
+        if (!message) return res.status(400).json({ error: "Faltou sua mensagem!" });
 
-        // 🔹 Adiciona a mensagem do usuário ao histórico
-        chatHistory.push(`Usuário: ${message}`);
+        chatHistory.push({ role: "user", content: message });
+        if (chatHistory.length > 5) chatHistory.shift();
+        const context = chatHistory.map(entry => `${entry.role}: ${entry.content}`).join("\n");
 
-        // 🔹 Limita o histórico para evitar excesso de mensagens
-        if (chatHistory.length > 10) {
-            chatHistory.shift();
-        }
-
-        // 🔹 Criando um contexto baseado no histórico da conversa
-        const context = chatHistory.join("\n");
-
-        console.log(`📡 Enviando para o Mistral com contexto:\n${context}`);
+        const prompt = `${BASE_PROMPT}\n\n**Histórico (se relevante):**\n${context}\n\n**Problema:**\n${message}\n\n**Responda com a solução mais eficaz e um plano claro:**`;
 
         const response = await axios.post(OLLAMA_API_URL, {
             model: MODEL_NAME,
-            prompt: `Você é a assistente de IA da Ultremare, uma plataforma que ajuda microempreendedores com marketing, finanças e produtividade. Seu tom de voz deve ser:
-        
-            - **Humano e acolhedor**, sem parecer robótico.
-            - **Simplicidade acima de tudo**, sem jargões complicados.
-            - **Positivo e encorajador**, motivando o usuário a melhorar seu negócio.
-            - **Usar metáforas do mar com moderação**, trazendo uma sensação de fluidez e crescimento.
-        
-            Exemplo de comportamento esperado:
-        
-            **Usuário:** Como posso melhorar minhas vendas?  
-            **IA:** Bora navegar nessa? 🌊 A primeira coisa é entender o que seus clientes mais compram. Você já analisou seus produtos mais vendidos? Posso te dar algumas estratégias rápidas para atrair mais clientes!
-        
-            **Usuário:** Como organizar meu fluxo de caixa?  
-            **IA:** Opa, manter as contas em ordem é essencial para não afundar no fim do mês! 🏝️ Comece separando suas entradas e saídas. Se quiser, posso te mostrar um modelo simples para anotar seus ganhos e gastos.
-        
-            **Histórico da Conversa:** 
-            ${context}
-
-            **Nova pergunta do usuário:** 
-            ${message}
-            
-            **Responda de forma encorajadora, clara e sem jargões:**`,
+            prompt,
             stream: false
         });
 
-        const reply = response.data.response || "Erro ao processar a resposta.";
-
-        // 🔹 Adiciona a resposta da IA ao histórico
-        chatHistory.push(`Ultremare: ${reply}`);
+        const reply = response.data.response || "Não consegui processar. Pode mandar de novo?";
+        chatHistory.push({ role: "assistant", content: reply });
 
         res.json({ reply });
-
     } catch (error) {
-        console.error("❌ Erro ao chamar Ollama:", error.message);
-        res.status(500).json({ error: "Erro ao processar a requisição." });
+        console.error("❌ Erro:", error.message);
+        res.status(500).json({ error: "Algo deu errado, mas vamos resolver!" });
     }
 });
 
-// ✅ Inicializa o servidor
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Servidor rodando em http://localhost:${PORT}`));
